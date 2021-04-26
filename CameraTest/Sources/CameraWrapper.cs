@@ -2,15 +2,18 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Timers;
+using Camera.Interfaces;
 using OpenCvSharp;
 
-namespace Camera
+namespace Camera.Sources
 {
-    public class CameraWrapper : IDisposable, ICameraWrapper
+    public class CameraWrapper : IDisposable, ICameraWrapper, IObservableCamera
     {
         private VideoCapture _camera;
         private readonly CameraSettings _settings;
+        private readonly bool _debugMode;
         private readonly Queue<Mat> _camImagesQueue;
+        private readonly List<ICameraObserver> _observers;
         //private Window _window;
         private System.Timers.Timer _intervalCaptureTimer;
         private const int IntervalTimeMs = 10000;
@@ -21,13 +24,15 @@ namespace Camera
 
         public CameraState State { get; private set; }
 
-        public CameraWrapper(CameraSettings cameraSettings)
+        public CameraWrapper(CameraSettings cameraSettings, bool debugMode)
         {
             _settings = cameraSettings;
+            _debugMode = debugMode;
             if (!ConnectCam()) return;
 
             State = CameraState.Idle;
             _camImagesQueue = new Queue<Mat>();
+            _observers = new List<ICameraObserver>();
             ApplyConfigurations(cameraSettings);
             StartRollingEvent += StartRolling;
         }
@@ -75,7 +80,7 @@ namespace Camera
             StopRollingEvent += StopRolling;
             //_window = new Window("capture");
 
-            Console.WriteLine("Rolling...");
+            Console.WriteLine("\nStarted Rolling...");
 
         }
 
@@ -95,7 +100,7 @@ namespace Camera
             }
 
             //reset to idle state
-            Console.WriteLine("Stop Rolling.");
+            Console.WriteLine("\nStop Rolling.");
             _intervalCaptureTimer.Stop();
             StopRollingEvent -= StopRolling;
             StartRollingEvent += StartRolling;
@@ -137,15 +142,24 @@ namespace Camera
             var image = Capture();
             if (image != null)
             {
-                _camImagesQueue.Enqueue(image);
-               //Task.Run((() => _window.ShowImage(image)));
-                
-               var date = $"{DateTime.Now:ddMyyyy_hhmmsstt}";
-                var res = image.SaveImage(_settings.FilePath + "test_" + date + ".jpg");
-                Console.WriteLine($"Image save time: {date} save operation successful: {res}");
+                //using observer interface to pass images to Camera observers
+                Notify(image);
+
+                if (_debugMode)
+                {
+                    _camImagesQueue.Enqueue(image);
+                    SaveImage(image);
+                }
             }
             else
                 Console.WriteLine("failed to capture an image");
+        }
+
+        private void SaveImage(Mat image)
+        {
+            var date = $"{DateTime.Now:ddMyyyy_hhmmsstt}";
+            var res = image.SaveImage(_settings.FilePath + "test_" + date + ".jpg");
+            Console.WriteLine($"Image save time: {date} save operation successful: {res}");
         }
 
         public Mat Capture()
@@ -156,10 +170,17 @@ namespace Camera
 
         public void Dispose()
         {
+            CloseCamera();
+            _camera.Dispose();
+        }
+
+        private void CloseCamera()
+        {
             _intervalCaptureTimer.Stop();
             StopRollingEvent -= StopRolling;
             StartRollingEvent -= StartRolling;
-            _camera.Dispose();
+            foreach (var observer in _observers)
+                Detach(observer);
         }
 
         public void RaiseStartRollingEvent()
@@ -169,6 +190,30 @@ namespace Camera
         public void RaiseStopRollingEvent()
         {
             StopRollingEvent?.Invoke(this, EventArgs.Empty);
+        }
+
+        // The subscription management methods.
+        public void Attach(ICameraObserver observer)
+        {
+            _observers.Add(observer);
+            Console.WriteLine("Camera: Attached an observer.");
+        }
+        //unsubscribe
+        public void Detach(ICameraObserver observer)
+        {
+            _observers.Remove(observer);
+            Console.WriteLine("Camera: Detached an observer.");
+        }
+
+        // Trigger an update in each subscriber.
+        public void Notify(Mat image)
+        {
+            Console.WriteLine("\nCamera: Notifying observers...");
+
+            foreach (var observer in _observers)
+            {
+                observer.ImageCaptured(image);
+            }
         }
     }
 }

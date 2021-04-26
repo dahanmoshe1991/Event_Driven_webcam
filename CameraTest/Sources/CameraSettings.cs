@@ -1,4 +1,4 @@
-﻿namespace Camera
+﻿namespace Camera.Sources
 {
     public struct CameraSettings
     {
