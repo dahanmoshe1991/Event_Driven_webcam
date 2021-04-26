@@ -179,8 +179,7 @@ namespace Camera.Sources
             _intervalCaptureTimer.Stop();
             StopRollingEvent -= StopRolling;
             StartRollingEvent -= StartRolling;
-            foreach (var observer in _observers)
-                Detach(observer);
+            _observers.Clear();
         }
 
         public void RaiseStartRollingEvent()

@@ -17,7 +17,7 @@ namespace Camera.Sources
 
             do
             {
-                Console.WriteLine("\nWrite s for start filming.");
+                Console.WriteLine("\n**Write s for start filming.**");
                 Task.Run((() =>
                 {
                     var stay = true;
@@ -32,10 +32,10 @@ namespace Camera.Sources
                                     //subscribe to camera
                                     _camera.Attach(cameraObserver1);
                                     _camera.Attach(cameraObserver2);
-
+                                    //imitate outside thread/process starting filming operation  
                                     Task.Run((() => _camera.RaiseStartRollingEvent()));
                                 }
-                                Console.WriteLine("\nWrite p for stop filming.");
+                                Console.WriteLine("\n**Write p for stop filming.**");
                                 break;
                             case "p":
                                 if (_camera.State == CameraState.Rolling)
